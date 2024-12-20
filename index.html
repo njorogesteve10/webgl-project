@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Circular Animation with VR</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<canvas></canvas>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/",
+        "@lumaai/luma-web": "https://unpkg.com/@lumaai/luma-web@0.2.0/dist/library/luma-web.module.js"
+    }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.7.1/dist/gsap.min.js"></script>
+<script type="module">
+import { WebGLRenderer, PerspectiveCamera, Scene, AmbientLight, DirectionalLight, Vector3 } from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { LumaSplatsThree } from '@lumaai/luma-web';
+
+// Setup canvas, renderer, and camera
+let canvas = document.querySelector('canvas');
+let renderer = new WebGLRenderer({ canvas: canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+
+let scene = new Scene();
+
+// Camera settings for focusing on the object
+let camera = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.5, 5);
+camera.lookAt(new Vector3(0, 0, 0));
+
+let controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.25;
+controls.enableZoom = true;
+
+// Add ambient light for basic illumination
+let ambientLight = new AmbientLight(0x404040, 2);
+scene.add(ambientLight);
+
+// Add directional light for shadows and more realistic lighting
+let directionalLight = new DirectionalLight(0xffffff, 1);
+directionalLight.position.set(10, 10, 10);
+directionalLight.castShadow = true;
+scene.add(directionalLight);
+
+// Luma model using the capture URL
+let splat = new LumaSplatsThree({
+    source: 'https://lumalabs.ai/capture/4e985b9b-5869-4f30-927b-6074ec695ed9'
+});
+scene.add(splat);
+
+// Variables for smooth circular and in-out motion
+let angle = 0;
+let radius = 2;
+let minRadius = 2;
+let maxRadius = 4; // Enhanced radius changes for visibility
+let minHeight = 1.5;
+let maxHeight = 2.5; // Height range remains restricted
+let rotationSpeed = 0.02;
+
+let triggers = [false, false, false, false];
+
+// Smooth animation using GSAP
+function animate() {
+    angle += rotationSpeed;
+
+    // Calculate circular motion
+    let x = radius * Math.cos(angle);
+    let z = radius * Math.sin(angle);
+    let y = minHeight + Math.sin(angle * 2) * (maxHeight - minHeight); // Restrict height range
+
+    // Smooth camera movement with GSAP
+    gsap.to(camera.position, {
+        x: x,
+        y: y,
+        z: z,
+        duration: 1.5,
+        ease: "power2.inOut",
+        onUpdate: () => {
+            camera.lookAt(new Vector3(0, 0, 0));
+        }
+    });
+
+    // Quarter-circle triggers for visible in-out movement
+    if (angle >= Math.PI / 4 && !triggers[0]) {
+        triggers[0] = true;
+        smoothTransition(maxRadius - 1, maxHeight - 0.2);
+    }
+    if (angle >= Math.PI / 2 && !triggers[1]) {
+        triggers[1] = true;
+        smoothTransition(maxRadius, maxHeight);
+    }
+    if (angle >= (3 * Math.PI) / 4 && !triggers[2]) {
+        triggers[2] = true;
+        smoothTransition(maxRadius - 0.5, maxHeight - 0.1);
+    }
+    if (angle >= Math.PI && !triggers[3]) {
+        triggers[3] = true;
+        smoothTransition(minRadius, minHeight);
+    }
+
+    // Reset after full rotation
+    if (angle >= Math.PI * 2) {
+        angle = 0;
+        radius = minRadius;
+        triggers = [false, false, false, false];
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+
+// Smooth transition for radius and height offset
+function smoothTransition(newRadius, newHeightOffset) {
+    gsap.to({ r: radius, h: minHeight }, {
+        r: newRadius,
+        h: newHeightOffset,
+        duration: 2,
+        ease: "power1.inOut",
+        onUpdate: function () {
+            radius = this.targets()[0].r;
+            minHeight = this.targets()[0].h;
+        }
+    });
+}
+
+// Start animation
+animate();
+
+// Resize handling for responsiveness
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
